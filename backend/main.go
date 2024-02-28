@@ -1,33 +1,31 @@
 package main
 
 import (
-	"net/http"
+	"backend/common"
+	"backend/users"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
-// album represents data about a record album.
-type album struct {
-	ID     string  `json:"id"`
-	Title  string  `json:"title"`
-	Artist string  `json:"artist"`
-	Price  float64 `json:"price"`
-}
-
-// albums slice to seed record album data.
-var albums = []album{
-	{ID: "1", Title: "Blue Train", Artist: "John Coltrane", Price: 56.99},
-	{ID: "2", Title: "Jeru", Artist: "Gerry Mulligan", Price: 17.99},
-	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
-}
-
-func getAlbums(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, albums)
-}
-
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file")
+	}
+
+	common.Init() // Initialize DB connection
+
+	//DB migrations
+	users.AutoMigrate()
+
 	router := gin.Default()
-	router.GET("/albums", getAlbums)
+
+	v1 := router.Group("/api/v1")
+
+	//routes
+	users.Register(v1.Group("/users"))
 
 	router.Run("localhost:8080")
 }
