@@ -6,20 +6,23 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func Register(router *gin.RouterGroup) {
-	router.POST("/", Create)
+
+	router.POST("/auth/register", RegisterUser)
+
 	router.GET("/:id", Get)
 	router.PUT("/:id", Update)
 	router.DELETE("/:id", Delete)
 }
 
-func Create(c *gin.Context) {
-
+func RegisterUser(c *gin.Context) {
 	var userInput struct {
-		Username string
-		Email    string
+		Username string `json:"username" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
 	}
 
 	if err := c.Bind(&userInput); err != nil {
@@ -27,14 +30,44 @@ func Create(c *gin.Context) {
 		return
 	}
 
+	_, userNameRes := FindUserByUsernameOrEmail(&User{Username: userInput.Username})
+	if userNameRes.Error != nil {
+		if userNameRes.Error == gorm.ErrRecordNotFound {
+			fmt.Println("User not found")
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": userNameRes.Error})
+			return
+		}
+	}
+
+	if userNameRes.RowsAffected > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username already taken!"})
+		return
+	}
+
+	_, emailRes := FindUserByUsernameOrEmail(&User{Email: userInput.Email})
+	if emailRes.Error != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": emailRes.Error})
+		return
+	}
+
+	if emailRes.RowsAffected > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email already registered!"})
+		return
+	}
+
 	var user User
-	user.Username = userInput.Username
 	user.Email = userInput.Email
+	user.Username = userInput.Username
+	err := user.setPassword(userInput.Password)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
 
 	user.CreateUser()
 
-	c.JSON(http.StatusCreated, user)
-
+	c.JSON(http.StatusCreated, gin.H{"user": user})
 }
 
 func Get(c *gin.Context) {
